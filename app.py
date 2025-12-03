@@ -17,6 +17,12 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- 🔧 Railway Hosting Compatibility Fix ---
+# Forces Streamlit to use the correct network interface and port
+port = int(os.environ.get("PORT", 8501))
+st.set_option('server.port', port)
+st.set_option('server.address', '0.0.0.0')
+
 # Initialize session state
 if 'generated_content' not in st.session_state:
     st.session_state.generated_content = None
@@ -46,7 +52,6 @@ def get_freepik_image(title):
         if response.status_code == 200:
             data = response.json()
             if data.get("data") and len(data["data"]) > 0:
-                # Navigate through the response structure
                 item = data["data"][0]
                 if "attributes" in item and "preview" in item["attributes"]:
                     return item["attributes"]["preview"].get("url")
@@ -78,7 +83,7 @@ def generate_outline(title, word_range):
     """Generate article outline using GPT-4 Turbo."""
     try:
         response = openai.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model=os.getenv("OPENAI_VERSION"),
             messages=[{
                 "role": "user",
                 "content": f"Create a detailed, structured outline for an article titled '{title}' that should be approximately {word_range} words. Format it as a clear, hierarchical outline with main sections and subsections."
@@ -95,7 +100,7 @@ def write_article(title, outline, word_range):
     """Write full article using the outline and word range."""
     try:
         response = openai.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model=os.getenv("OPENAI_VERSION"),
             messages=[{
                 "role": "user",
                 "content": f"Write a complete, well-researched article titled '{title}' using this outline:\n\n{outline}\n\nThe article should be approximately {word_range} words. Make it engaging, informative, and professional. Include an introduction, well-structured body paragraphs, and a conclusion."
@@ -112,7 +117,7 @@ def suggest_resources(title):
     """Suggest authoritative resources related to the article topic."""
     try:
         response = openai.chat.completions.create(
-            model="gpt-4-turbo-preview",
+            model=os.getenv("OPENAI_VERSION"),
             messages=[{
                 "role": "user",
                 "content": f"Provide 5 authoritative online resources (websites, articles, studies, or references) related to '{title}'. Format each as a clear title and description. Include why each resource is valuable."
@@ -127,12 +132,10 @@ def suggest_resources(title):
 
 def generate_header_image(title):
     """Generate header image with Freepik first, DALL-E fallback."""
-    # Try Freepik first
     freepik_image = get_freepik_image(title)
     if freepik_image:
         return freepik_image, "Freepik"
     
-    # Fallback to DALL-E
     dalle_image = generate_dalle_image(title)
     if dalle_image:
         return dalle_image, "DALL-E"
@@ -167,9 +170,9 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 💡 Tips")
     st.markdown("""
-    - Be specific with your title for better results
-    - Word range helps control article length
-    - Images are sourced from Freepik first (free), then DALL-E
+    - Be specific with your title for better results  
+    - Word range helps control article length  
+    - Images are sourced from Freepik first (free), then DALL-E  
     - All content is AI-generated using GPT-4 Turbo
     """)
 
@@ -180,13 +183,11 @@ if generate_button:
     elif not openai.api_key:
         st.error("⚠️ OpenAI API key not found. Please set OPENAI_API_KEY in your environment variables.")
     else:
-        # Initialize progress
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         generated_content = {}
         
-        # Step 1: Generate outline
         status_text.info("📋 Generating article outline...")
         progress_bar.progress(20)
         outline = generate_outline(title, word_range)
@@ -195,7 +196,6 @@ if generate_button:
             generated_content['outline'] = outline
             progress_bar.progress(40)
             
-            # Step 2: Write article
             status_text.info("✍️ Writing full article...")
             article = write_article(title, outline, word_range)
             
@@ -203,7 +203,6 @@ if generate_button:
                 generated_content['article'] = article
                 progress_bar.progress(60)
                 
-                # Step 3: Generate header image
                 status_text.info("🖼️ Searching for header image...")
                 image_url, image_source = generate_header_image(title)
                 
@@ -216,7 +215,6 @@ if generate_button:
                     generated_content['image_url'] = None
                     generated_content['image_source'] = None
                 
-                # Step 4: Suggest resources
                 status_text.info("📚 Gathering related resources...")
                 resources = suggest_resources(title)
                 
@@ -224,7 +222,6 @@ if generate_button:
                     generated_content['resources'] = resources
                     progress_bar.progress(100)
                 
-                # Store in session state
                 st.session_state.generated_content = generated_content
                 status_text.success("✅ Article generation complete!")
             else:
@@ -239,55 +236,42 @@ if generate_button:
 if st.session_state.generated_content:
     content = st.session_state.generated_content
     
-    # Outline section (expandable)
     with st.expander("📋 Article Outline", expanded=True):
         st.markdown(content.get('outline', 'No outline generated.'))
     
     st.markdown("---")
-    
-    # Article section
     st.markdown("### 📝 Complete Article")
     st.markdown(content.get('article', 'No article generated.'))
-    
     st.markdown("---")
     
-    # Header image section
     if content.get('image_url'):
         st.markdown("### 🖼️ Header Image")
-        image_source = content.get('image_source', 'Unknown')
         st.image(
             content['image_url'],
-            caption=f"Header Image (Source: {image_source})",
-            use_container_width=True
+            caption=f"Header Image (Source: {content.get('image_source', 'Unknown')})",
+            width=700
         )
     else:
         st.markdown("### 🖼️ Header Image")
         st.info("No header image available.")
     
     st.markdown("---")
-    
-    # Resources section
     st.markdown("### 📚 Additional Resources")
     st.markdown(content.get('resources', 'No resources generated.'))
-    
     st.markdown("---")
     
-    # Download options
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📥 Download as Markdown"):
             markdown_content = f"""# {title}
 
 ## Outline
-
 {content.get('outline', '')}
 
 ## Article
-
 {content.get('article', '')}
 
 ## Resources
-
 {content.get('resources', '')}
 """
             st.download_button(
@@ -296,11 +280,9 @@ if st.session_state.generated_content:
                 file_name=f"{title.replace(' ', '_')}.md",
                 mime="text/markdown"
             )
-    
     with col2:
         st.info("💡 PDF export coming soon!")
 
-# Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #666;'>"
@@ -308,4 +290,3 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True
 )
-
