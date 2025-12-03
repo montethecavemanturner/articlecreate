@@ -17,11 +17,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- 🔧 Railway Hosting Compatibility Fix ---
-# Forces Streamlit to use the correct network interface and port
-port = int(os.environ.get("PORT", 8501))
-st.set_option('server.port', port)
-st.set_option('server.address', '0.0.0.0')
+
 
 # Initialize session state
 if 'generated_content' not in st.session_state:
